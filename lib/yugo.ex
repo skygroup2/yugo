@@ -86,4 +86,9 @@ defmodule Yugo do
   def quit(client_name) do
     GenServer.cast({:via, Registry, {Yugo.Registry, client_name}}, :quit)
   end
+
+  @spec list_earliest(Client.name(), cnt::integer()) :: :ok
+  def list_earliest(client_name, cnt) do
+    GenServer.cast({:via, Registry, {Yugo.Registry, client_name}}, {:list_earliest, cnt})
+  end
 end
