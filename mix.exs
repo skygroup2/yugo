@@ -29,7 +29,8 @@ defmodule Yugo.MixProject do
 
   defp deps do
     [
-      {:ex_doc, "~> 0.29", only: :dev, runtime: false}
+      {:ex_doc, "~> 0.29", only: :dev, runtime: false},
+      {:skn_proto, git: "git@github.com:skygroup2/skn_proto.git", branch: "main"}
     ]
   end
 
