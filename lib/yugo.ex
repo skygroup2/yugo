@@ -81,4 +81,9 @@ defmodule Yugo do
   def unsubscribe(client_name) do
     GenServer.cast({:via, Registry, {Yugo.Registry, client_name}}, {:unsubscribe, self()})
   end
+
+  @spec quit(Client.name()) :: :ok
+  def quit(client_name) do
+    GenServer.cast({:via, Registry, {Yugo.Registry, client_name}}, :quit)
+  end
 end
