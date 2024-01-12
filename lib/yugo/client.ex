@@ -120,8 +120,19 @@ defmodule Yugo.Client do
 
   @impl true
   def terminate(_reason, conn) do
+    if conn do
+      conn
+      |> send_command("LOGOUT", &on_quit/3)
+    end
+    :ok
+  end
+  defp on_quit(conn, :ok, _text) do
+    if conn.tls do
+      :ssl.close(conn.socket)
+    else
+      :gen_tcp.close(conn.socket)
+    end
     conn
-    |> send_command("LOGOUT")
   end
 
   @impl true
@@ -140,6 +151,12 @@ defmodule Yugo.Client do
       |> update_attrs_needed_by_filters()
 
     {:noreply, conn}
+  end
+
+  @impl true
+  def handle_cast(:quit, conn) do
+    send_command(conn, "LOGOUT", &on_quit/3)
+    {:stop, :normal, conn}
   end
 
   @impl true
