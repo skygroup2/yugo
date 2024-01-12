@@ -160,7 +160,7 @@ defmodule Yugo.Client do
   end
 
   @impl true
-  def handle_cast({:list_earliest, cnt}, conn) do
+  def handle_cast({:list_earliest, cnt}, %{num_exists: num} = conn) when num != nil do
     msgs =
       Enum.take(conn.num_exists..1, cnt)
       |> Enum.reduce(conn.unprocessed_messages, fn i, acc -> Map.put_new(acc, i, %{}) end)
@@ -176,18 +176,45 @@ defmodule Yugo.Client do
       |> maybe_idle()
     {:noreply, conn}
   end
+  @impl true
+  def handle_cast({:list_earliest, _cnt}, conn) do
+    {:noreply, conn}
+  end
+
+  @tcp_opt [:binary, reuseaddr: true, keepalive: true, active: false, packet: :line, active: :once, mode: :binary, linger: {true, 0}]
+  defp tcp_opt(proxy2) do
+    proxy_host = proxy2[:proxy]
+    proxy_auth = proxy2[:proxy_auth]
+
+    case proxy_host do
+      {:socks5, ph, pp} ->
+        case proxy_auth do
+          {user, pass} ->
+            [{:socks5_host, ph}, {:socks5_port, pp}, {:socks5_user, user}, {:socks5_pass, pass}, {:socks5_resolve, :local}, {:tcp_opt, @tcp_opt}]
+          _ ->
+            [{:socks5_host, ph}, {:socks5_port, pp}, {:socks5_resolve, :local}, {:tcp_opt, @tcp_opt}]
+        end
+      "http://" <> _ ->
+        %{host: ph, port: pp} = :gun_url.parse_url(proxy_host)
+        case proxy_auth do
+          {user, pass} ->
+            [{:connect_host, ph}, {:connect_port, pp}, {:connect_user, user}, {:connect_pass, pass}, {:tcp_opt, @tcp_opt}]
+          nil ->
+            [{:connect_host, ph}, {:connect_port, pp}, {:tcp_opt, @tcp_opt}]
+        end
+      _ ->
+        [{:tcp_opt, @tcp_opt}]
+    end
+  end
 
   @impl true
   def handle_info({:do_init, args}, _state) do
-    {:ok, socket} =
+    {:ok, socket} = GunEx.connect(args[:server], args[:port], tcp_opt(args[:proxy]))
+    {:ok, socket} = 
       if args[:tls] do
-        :ssl.connect(
-          args[:server],
-          args[:port],
-          ssl_opts(args[:server], args[:ssl_verify])
-        )
+        :ssl.connect(socket, ssl_opts(args[:server], args[:ssl_verify]))
       else
-        :gen_tcp.connect(args[:server], args[:port], @common_connect_opts)
+        {:inet.setopts(socket, active: :once), socket}
       end
 
     conn = %Conn{
@@ -337,6 +364,7 @@ defmodule Yugo.Client do
   end
 
   defp on_starttls_response(conn, :ok, _text) do
+    IO.puts "on_starttls_response"
     {:ok, socket} = :ssl.connect(conn.socket, ssl_opts(conn.server, conn.ssl_verify), :infinity)
 
     %{conn | tls: true, socket: socket}
