@@ -160,6 +160,24 @@ defmodule Yugo.Client do
   end
 
   @impl true
+  def handle_cast({:list_earliest, cnt}, conn) do
+    msgs =
+      Enum.take(conn.num_exists..1, cnt)
+      |> Enum.reduce(conn.unprocessed_messages, fn i, acc -> Map.put_new(acc, i, %{}) end)
+    conn =
+      if conn.idling do
+        cancel_idle(conn)
+      else
+        conn
+      end
+    conn =
+      %{conn| unprocessed_messages: msgs}
+      |> maybe_process_messages()
+      |> maybe_idle()
+    {:noreply, conn}
+  end
+
+  @impl true
   def handle_info({:do_init, args}, _state) do
     {:ok, socket} =
       if args[:tls] do
